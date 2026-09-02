@@ -24,22 +24,21 @@ public class ProductRepository : IProductRepository
     public async Task<Product?> GetByIdAsync(int id)
     {
         return await _context.Products
-            .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
     public async Task<Product> AddAsync(Product product)
     {
         await _context.Products.AddAsync(product);
-        await _context.SaveChangesAsync();
 
         return product;
     }
 
     public async Task UpdateAsync(Product product)
     {
-        _context.Products.Update(product);
-        await _context.SaveChangesAsync();
+        _context.Entry(product)
+            .Property(p => p.StockQuantity)
+            .IsModified = true;
     }
 
     public async Task DeleteAsync(int id)
@@ -53,6 +52,7 @@ public class ProductRepository : IProductRepository
         }
 
         _context.Products.Remove(product);
+
         await _context.SaveChangesAsync();
     }
 }
