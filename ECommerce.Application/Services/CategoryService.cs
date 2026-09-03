@@ -13,27 +13,41 @@ public class CategoryService : ICategoryService
         _categoryRepository = categoryRepository;
     }
 
+    // Customer + Admin
     public async Task<IEnumerable<CategoryDto>> GetAllAsync()
     {
-        var categories = await _categoryRepository.GetAllAsync();
+        var categories =
+            await _categoryRepository.GetAllAsync();
 
         return categories.Select(MapToDto);
     }
 
+    // Customer + Admin
     public async Task<CategoryDto?> GetByIdAsync(int id)
     {
-        var category = await _categoryRepository.GetByIdAsync(id);
+        var category =
+            await _categoryRepository.GetByIdAsync(id);
 
-        return category is null ? null : MapToDto(category);
+        if (category == null)
+        {
+            return null;
+        }
+
+        return MapToDto(category);
     }
 
+    // Admin
     public async Task<CategoryDto> CreateAsync(
         CreateCategoryDto categoryDto)
     {
+        ValidateCategory(categoryDto);
+
         var category = new Category
         {
-            Name = categoryDto.Name,
-            Description = categoryDto.Description
+            Name = categoryDto.Name.Trim(),
+            Description =
+                categoryDto.Description?.Trim()
+                ?? string.Empty
         };
 
         var createdCategory =
@@ -42,30 +56,39 @@ public class CategoryService : ICategoryService
         return MapToDto(createdCategory);
     }
 
+    // Admin
     public async Task<bool> UpdateAsync(
         int id,
         CreateCategoryDto categoryDto)
     {
-        var category = await _categoryRepository.GetByIdAsync(id);
+        ValidateCategory(categoryDto);
 
-        if (category is null)
+        var category =
+            await _categoryRepository.GetByIdAsync(id);
+
+        if (category == null)
         {
             return false;
         }
 
-        category.Name = categoryDto.Name;
-        category.Description = categoryDto.Description;
+        category.Name = categoryDto.Name.Trim();
+
+        category.Description =
+            categoryDto.Description?.Trim()
+            ?? string.Empty;
 
         await _categoryRepository.UpdateAsync(category);
 
         return true;
     }
 
+    // Admin
     public async Task<bool> DeleteAsync(int id)
     {
-        var category = await _categoryRepository.GetByIdAsync(id);
+        var category =
+            await _categoryRepository.GetByIdAsync(id);
 
-        if (category is null)
+        if (category == null)
         {
             return false;
         }
@@ -75,7 +98,18 @@ public class CategoryService : ICategoryService
         return true;
     }
 
-    private static CategoryDto MapToDto(Category category)
+    private static void ValidateCategory(
+        CreateCategoryDto categoryDto)
+    {
+        if (string.IsNullOrWhiteSpace(categoryDto.Name))
+        {
+            throw new ArgumentException(
+                "Category name is required.");
+        }
+    }
+
+    private static CategoryDto MapToDto(
+        Category category)
     {
         return new CategoryDto
         {

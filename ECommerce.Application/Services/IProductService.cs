@@ -1,16 +1,21 @@
 ﻿using ECommerce.Application.DTOs;
 
-namespace ECommerce.Application.Services;
+namespace ECommerce.Application.Interfaces;
 
 public interface IProductService
 {
+    // Customer operations
     Task<IEnumerable<ProductDto>> GetAllAsync();
 
     Task<ProductDto?> GetByIdAsync(int id);
 
-    Task<ProductDto> CreateAsync(CreateProductDto productDto);
+    // Admin operations
+    Task<ProductDto> CreateAsync(
+        CreateProductDto dto);
 
-    Task<bool> UpdateAsync(int id, CreateProductDto productDto);
+    Task<ProductDto?> UpdateAsync(
+        int id,
+        UpdateProductDto dto);
 
     Task<bool> DeleteAsync(int id);
 }

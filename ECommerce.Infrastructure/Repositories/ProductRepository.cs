@@ -31,20 +31,23 @@ public class ProductRepository : IProductRepository
     {
         await _context.Products.AddAsync(product);
 
+        await _context.SaveChangesAsync();
+
         return product;
     }
 
     public async Task UpdateAsync(Product product)
     {
-        _context.Entry(product)
-            .Property(p => p.StockQuantity)
-            .IsModified = true;
+        _context.Products.Update(product);
+
+        await _context.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(int id)
     {
-        var product = await _context.Products
-            .FirstOrDefaultAsync(p => p.Id == id);
+        var product =
+            await _context.Products
+                .FirstOrDefaultAsync(p => p.Id == id);
 
         if (product is null)
         {

@@ -1,8 +1,12 @@
+using ECommerce.API.Hubs;
+using ECommerce.API.Services;
 using ECommerce.Application.Interfaces;
 using ECommerce.Application.Services;
+using ECommerce.Infrastructure.BackgroundJobs;
 using ECommerce.Infrastructure.Data;
 using ECommerce.Infrastructure.Identity;
 using ECommerce.Infrastructure.Repositories;
+using ECommerce.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +53,8 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 builder.Services.AddScoped<IProductService, ProductService>();
 
+builder.Services.AddScoped<ICacheService, MemoryCacheService>();
+
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 
@@ -63,6 +69,12 @@ builder.Services.AddScoped<ICartService, CartService>();
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
+builder.Services.AddSingleton<IBackgroundJobQueue, BackgroundJobQueue>();
+builder.Services.AddSingleton<
+    IOrderBackgroundProcessor,
+    OrderBackgroundProcessor>();
+builder.Services.AddHostedService<OrderBackgroundWorker>();
+
 builder.Services.AddScoped<IInventoryService, InventoryService>();
 
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -73,6 +85,11 @@ builder.Services.AddScoped<IIdentityService, IdentityService>();
 // Add services to the container.
 
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
+builder.Services.AddScoped<
+    IOrderNotificationService,
+    OrderNotificationService>();
+builder.Services.AddMemoryCache();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
@@ -126,4 +143,9 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+app.MapHub<OrderHub>("/hubs/order");
+
 app.Run();
+public partial class Program
+{
+}

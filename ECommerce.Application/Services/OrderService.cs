@@ -9,32 +9,35 @@ public class OrderService : IOrderService
 {
     private readonly IOrderRepository _orderRepository;
     private readonly IProductRepository _productRepository;
+    private readonly IBackgroundJobQueue _backgroundJobQueue;
+    private readonly IOrderBackgroundProcessor _orderBackgroundProcessor;
+    private readonly IOrderNotificationService _orderNotificationService;
 
     public OrderService(
         IOrderRepository orderRepository,
-        IProductRepository productRepository)
+        IProductRepository productRepository,
+        IBackgroundJobQueue backgroundJobQueue,
+        IOrderBackgroundProcessor orderBackgroundProcessor,
+        IOrderNotificationService orderNotificationService)
     {
         _orderRepository = orderRepository;
         _productRepository = productRepository;
+        _backgroundJobQueue = backgroundJobQueue;
+        _orderBackgroundProcessor = orderBackgroundProcessor;
+        _orderNotificationService = orderNotificationService;
     }
-
-    // =========================================================
-    // CUSTOMER OPERATIONS
-    // =========================================================
 
     public async Task<OrderDto?> GetByIdAsync(
         int id,
         string userId)
     {
-        var order =
-            await _orderRepository.GetByIdAsync(id);
+        var order = await _orderRepository.GetByIdAsync(id);
 
         if (order == null)
         {
             return null;
         }
 
-        // Customer can only view their own order
         if (order.UserId != userId)
         {
             return null;
@@ -107,7 +110,6 @@ public class OrderService : IOrderService
             totalAmount +=
                 product.Price * itemDto.Quantity;
 
-            // Reduce inventory
             product.StockQuantity -= itemDto.Quantity;
 
             await _productRepository.UpdateAsync(product);
@@ -117,15 +119,18 @@ public class OrderService : IOrderService
 
         await _orderRepository.AddAsync(order);
 
-        // Save so EF Core generates the database Order ID.
         await _orderRepository.SaveChangesAsync();
+
+        var orderId = order.Id;
+
+        await _backgroundJobQueue.QueueAsync(
+            cancellationToken =>
+                _orderBackgroundProcessor.ProcessOrderAsync(
+                    orderId,
+                    cancellationToken));
 
         return MapToDto(order);
     }
-
-    // =========================================================
-    // ADMIN OPERATIONS
-    // =========================================================
 
     public async Task<IEnumerable<OrderDto>> GetAllOrdersAsync()
     {
@@ -168,8 +173,7 @@ public class OrderService : IOrderService
             "Cancelled"
         };
 
-        var normalizedStatus =
-            status.Trim();
+        var normalizedStatus = status.Trim();
 
         var validStatus =
             allowedStatuses.FirstOrDefault(
@@ -196,12 +200,15 @@ public class OrderService : IOrderService
 
         await _orderRepository.SaveChangesAsync();
 
+        // Notify clients that are connected to this order's
+        // SignalR group.
+        await _orderNotificationService
+            .NotifyOrderStatusChangedAsync(
+                order.Id,
+                order.Status);
+
         return MapToDto(order);
     }
-
-    // =========================================================
-    // MAPPING
-    // =========================================================
 
     private static OrderDto MapToDto(Order order)
     {
@@ -213,15 +220,18 @@ public class OrderService : IOrderService
             TotalAmount = order.TotalAmount,
             Status = order.Status,
 
-            Items = order.OrderItems.Select(item => new OrderItemDto
-            {
-                ProductId = item.ProductId,
-                ProductName = item.Product?.Name ?? string.Empty,
-                Quantity = item.Quantity,
-                UnitPrice = item.UnitPrice,
-                TotalPrice =
-                    item.UnitPrice * item.Quantity
-            }).ToList()
+            Items = order.OrderItems
+                .Select(item => new OrderItemDto
+                {
+                    ProductId = item.ProductId,
+                    ProductName =
+                        item.Product?.Name ?? string.Empty,
+                    Quantity = item.Quantity,
+                    UnitPrice = item.UnitPrice,
+                    TotalPrice =
+                        item.UnitPrice * item.Quantity
+                })
+                .ToList()
         };
     }
 }
